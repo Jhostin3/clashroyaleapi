@@ -6,6 +6,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import "../global.css";
 import { getStatColor, translateStatName } from './utils';
 
+// Función para obtener el color de fondo según el tipo de Pokémon
 const getTypeColor = (type) => {
     const colors = {
         normal: 'bg-gray-400', fire: 'bg-orange-500', water: 'bg-blue-500',
@@ -18,7 +19,9 @@ const getTypeColor = (type) => {
     return colors[type] || 'bg-gray-400';
 };
 
+// Componente principal de la Pokédex
 export default function Pokedex() {
+  // Estados para la búsqueda, datos del Pokémon, carga, errores, sonido y vista shiny
   const [searchQuery, setSearchQuery] = useState('');
   const [pokemon, setPokemon] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -27,10 +30,12 @@ export default function Pokedex() {
   const [sound, setSound] = useState();
   const [showShiny, setShowShiny] = useState(false);
 
+  // Oculta la pantalla de carga inicial después del primer renderizado
   useEffect(() => {
     setInitialLoading(false);
   }, []);
 
+  // Función para buscar un Pokémon en la PokeAPI
   const handleSearch = async () => {
     if (!searchQuery) {
       setError('Ingresa un nombre o ID de Pokémon.');
@@ -50,6 +55,7 @@ export default function Pokedex() {
       }
 
       const data = await response.json();
+      // Obtiene los detalles de los 4 primeros movimientos
       const movePromises = data.moves.slice(0, 4).map(moveInfo => fetch(moveInfo.move.url).then(res => res.json()));
       const moves = await Promise.all(movePromises);
       data.detailed_moves = moves;
@@ -64,6 +70,7 @@ export default function Pokedex() {
     }
   };
 
+  // Función para reproducir el grito del Pokémon
   async function playSound() {
     if (!pokemon?.cries?.latest) return;
     const { sound } = await Audio.Sound.createAsync({ uri: pokemon.cries.latest });
@@ -71,10 +78,12 @@ export default function Pokedex() {
     await sound.playAsync();
   }
 
+  // Efecto para descargar el sonido cuando el componente se desmonta
   useEffect(() => {
     return sound ? () => { sound.unloadAsync(); } : undefined;
   }, [sound]);
 
+  // Renderiza el contenido principal de la aplicación
   const renderContent = () => {
     if (loading) return <ActivityIndicator size="large" color="#fbbf24" className="mt-10" />;
     if (error) return <Text className="text-red-500 text-lg text-center mt-10">{error}</Text>;
@@ -83,8 +92,10 @@ export default function Pokedex() {
       const artwork = showShiny ? pokemon.sprites.other['official-artwork'].front_shiny : pokemon.sprites.other['official-artwork'].front_default;
       return (
         <View className="bg-gray-800 rounded-2xl p-6 items-center shadow-2xl w-11/12 max-w-sm mt-8">
+          {/* Imagen del Pokémon */}
           <Image source={{ uri: artwork }} className="w-48 h-48 -mt-24" resizeMode="contain" />
 
+          {/* Botones para shiny y sonido */}
           <View className="flex-row justify-center w-full -mt-4 mb-2">
             <TouchableOpacity onPress={() => setShowShiny(!showShiny)} className="bg-gray-700 p-3 rounded-full mx-2">
                 <FontAwesome name="star" size={20} color={showShiny ? '#fbbf24' : 'white'} />
@@ -94,6 +105,7 @@ export default function Pokedex() {
             </TouchableOpacity>
           </View>
 
+          {/* Nombre y tipos */}
           <Text className="text-white text-4xl font-bold capitalize mb-2">{pokemon.name}</Text>
           <View className="flex-row mb-4">
             {pokemon.types.map((typeInfo) => (
@@ -102,6 +114,7 @@ export default function Pokedex() {
               </View>
             ))}
           </View>
+          {/* Estadísticas base */}
           <View className="w-full mt-4">
               <Text className="text-white text-2xl font-bold mb-2 text-center">Estadísticas Base</Text>
               {pokemon.stats.map((statInfo) => (
@@ -117,6 +130,7 @@ export default function Pokedex() {
                 </View>
               ))}
           </View>
+          {/* Ataques notables */}
           <View className="w-full mt-6">
               <Text className="text-white text-2xl font-bold mb-3 text-center">Ataques Notables</Text>
               {pokemon.detailed_moves.map((move) => (
@@ -139,9 +153,11 @@ export default function Pokedex() {
       );
     }
     
+    // Mensaje inicial
     return <Text className="text-gray-500 text-center mt-10">¡Busca un Pokémon para empezar!</Text>;
   };
 
+  // Muestra una pantalla de carga mientras la aplicación se inicia
   if (initialLoading) {
     return (
         <SafeAreaView className="flex-1 bg-gray-900 justify-center items-center">
@@ -156,6 +172,7 @@ export default function Pokedex() {
         <ScrollView contentContainerStyle={{flexGrow: 1, alignItems: 'center'}} className="w-full">
             <Text className="text-5xl font-extrabold text-yellow-400 mt-20 mb-6">Pokédex</Text>
             
+            {/* Barra de búsqueda y botón */}
             <View className="w-11/12 max-w-sm">
                 <TextInput 
                     className="bg-gray-800 border border-gray-700 text-white text-lg rounded-lg p-4 w-full"
@@ -174,6 +191,7 @@ export default function Pokedex() {
                 </TouchableOpacity>
             </View>
 
+            {/* Contenido principal (resultados de búsqueda) */}
             {renderContent()}
         </ScrollView>
     </SafeAreaView>
