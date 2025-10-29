@@ -22,9 +22,14 @@ export default function Pokedex() {
   const [searchQuery, setSearchQuery] = useState('');
   const [pokemon, setPokemon] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sound, setSound] = useState();
   const [showShiny, setShowShiny] = useState(false);
+
+  useEffect(() => {
+    setInitialLoading(false);
+  }, []);
 
   const handleSearch = async () => {
     if (!searchQuery) {
@@ -136,6 +141,14 @@ export default function Pokedex() {
     
     return <Text className="text-gray-500 text-center mt-10">¡Busca un Pokémon para empezar!</Text>;
   };
+
+  if (initialLoading) {
+    return (
+        <SafeAreaView className="flex-1 bg-gray-900 justify-center items-center">
+            <ActivityIndicator size="large" color="#fbbf24" />
+        </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-gray-900">
