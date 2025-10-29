@@ -3,12 +3,55 @@ import { View, Text, Image, ActivityIndicator, SafeAreaView, TextInput, Touchabl
 import { Stack } from 'expo-router';
 import { Audio } from 'expo-av';
 import { FontAwesome } from '@expo/vector-icons';
+import axios from 'axios';
 import "../global.css";
 import { getStatColor, translateStatName } from './utils';
 
+// Interfaz para el tipado de los datos del Pokémon
+export interface PokemonType {
+  name: string;
+  height: number;
+  weight: number;
+  sprites: {
+    other: {
+      'official-artwork': {
+        front_default: string;
+        front_shiny: string;
+      };
+    };
+  };
+  types: {
+    type: {
+      name: string;
+    };
+  }[];
+  stats: {
+    base_stat: number;
+    stat: {
+      name: string;
+    };
+  }[];
+  moves: {
+    move: {
+      url: string;
+    };
+  }[];
+  detailed_moves: {
+    name: string;
+    type: {
+      name: string;
+    };
+    power: number | null;
+    accuracy: number | null;
+  }[];
+  cries: {
+    latest: string;
+  };
+}
+
 // Función para obtener el color de fondo según el tipo de Pokémon
-const getTypeColor = (type) => {
-    const colors = {
+const getTypeColor = (type: string) => {
+    const colors: { [key: string]: string } = {
         normal: 'bg-gray-400', fire: 'bg-orange-500', water: 'bg-blue-500',
         electric: 'bg-yellow-400', grass: 'bg-green-500', ice: 'bg-cyan-300',
         fighting: 'bg-red-700', poison: 'bg-purple-500', ground: 'bg-amber-700',
@@ -21,53 +64,55 @@ const getTypeColor = (type) => {
 
 // Componente principal de la Pokédex
 export default function Pokedex() {
-  // Estados para la búsqueda, datos del Pokémon, carga, errores, sonido y vista shiny
-  const [searchQuery, setSearchQuery] = useState('');
-  const [pokemon, setPokemon] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [sound, setSound] = useState();
-  const [showShiny, setShowShiny] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('pikachu');
+  const [pokemon, setPokemon] = useState<PokemonType | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sound, setSound] = useState<Audio.Sound | undefined>();
+  const [showShiny, setShowShiny] = useState<boolean>(false);
 
-  // Oculta la pantalla de carga inicial después del primer renderizado
-  useEffect(() => {
-    setInitialLoading(false);
-  }, []);
-
-  // Función para buscar un Pokémon en la PokeAPI
-  const handleSearch = async () => {
-    if (!searchQuery) {
-      setError('Ingresa un nombre o ID de Pokémon.');
-      return;
-    }
+  // Función asíncrona para obtener los datos del Pokémon
+  const obtenerPokemon = async (query: string) => {
     setLoading(true);
     setError(null);
     setPokemon(null);
     setShowShiny(false);
 
     try {
-      const formattedQuery = searchQuery.toLowerCase().trim();
-      const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${formattedQuery}`);
-      
-      if (!response.ok) {
-        throw new Error(`No se pudo encontrar el Pokémon: "${searchQuery}"`);
-      }
+      const formattedQuery = query.toLowerCase().trim();
+      const response = await axios.get<PokemonType>(`https://pokeapi.co/api/v2/pokemon/${formattedQuery}`);
+      const data = response.data;
 
-      const data = await response.json();
       // Obtiene los detalles de los 4 primeros movimientos
-      const movePromises = data.moves.slice(0, 4).map(moveInfo => fetch(moveInfo.move.url).then(res => res.json()));
-      const moves = await Promise.all(movePromises);
-      data.detailed_moves = moves;
+      const movePromises = data.moves.slice(0, 4).map(moveInfo => axios.get(moveInfo.move.url));
+      const moveResponses = await Promise.all(movePromises);
+      data.detailed_moves = moveResponses.map(res => res.data);
 
       setPokemon(data);
-    } catch (e) {
-      if (e instanceof Error) {
-          setError(e.message);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setError(`No se pudo encontrar el Pokémon: "${query}"`);
+      } else {
+        setError('Ocurrió un error inesperado.');
       }
+      console.error('Fallo en la petición tipada:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Efecto para obtener el Pokémon inicial al montar el componente
+  useEffect(() => {
+    obtenerPokemon(searchQuery);
+  }, []);
+
+  // Función para manejar la búsqueda
+  const handleSearch = () => {
+    if (!searchQuery) {
+      setError('Ingresa un nombre o ID de Pokémon.');
+      return;
+    }
+    obtenerPokemon(searchQuery);
   };
 
   // Función para reproducir el grito del Pokémon
@@ -83,10 +128,24 @@ export default function Pokedex() {
     return sound ? () => { sound.unloadAsync(); } : undefined;
   }, [sound]);
 
-  // Renderiza el contenido principal de la aplicación
+  // Renderiza el contenido principal
   const renderContent = () => {
-    if (loading) return <ActivityIndicator size="large" color="#fbbf24" className="mt-10" />;
-    if (error) return <Text className="text-red-500 text-lg text-center mt-10">{error}</Text>;
+    if (loading) {
+        return (
+            <View className="flex-1 justify-center items-center">
+                <ActivityIndicator size="large" color="#fbbf24" />
+                <Text className="text-white mt-2">Cargando...</Text>
+            </View>
+        );
+    }
+    
+    if (error) {
+        return (
+            <View className="flex-1 justify-center items-center">
+                <Text className="text-red-500 text-lg">{error}</Text>
+            </View>
+        );
+    }
 
     if (pokemon) {
       const artwork = showShiny ? pokemon.sprites.other['official-artwork'].front_shiny : pokemon.sprites.other['official-artwork'].front_default;
@@ -153,18 +212,8 @@ export default function Pokedex() {
       );
     }
     
-    // Mensaje inicial
     return <Text className="text-gray-500 text-center mt-10">¡Busca un Pokémon para empezar!</Text>;
   };
-
-  // Muestra una pantalla de carga mientras la aplicación se inicia
-  if (initialLoading) {
-    return (
-        <SafeAreaView className="flex-1 bg-gray-900 justify-center items-center">
-            <ActivityIndicator size="large" color="#fbbf24" />
-        </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView className="flex-1 bg-gray-900">
@@ -172,7 +221,6 @@ export default function Pokedex() {
         <ScrollView contentContainerStyle={{flexGrow: 1, alignItems: 'center'}} className="w-full">
             <Text className="text-5xl font-extrabold text-yellow-400 mt-20 mb-6">Pokédex</Text>
             
-            {/* Barra de búsqueda y botón */}
             <View className="w-11/12 max-w-sm">
                 <TextInput 
                     className="bg-gray-800 border border-gray-700 text-white text-lg rounded-lg p-4 w-full"
@@ -191,7 +239,6 @@ export default function Pokedex() {
                 </TouchableOpacity>
             </View>
 
-            {/* Contenido principal (resultados de búsqueda) */}
             {renderContent()}
         </ScrollView>
     </SafeAreaView>
